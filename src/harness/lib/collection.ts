@@ -1,10 +1,13 @@
 import { glob } from "glob";
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
+import { stripVTControlCharacters } from 'util';
 import { collectGuidesUsed, collectGuidanceToolsUsed } from './guide-usage.ts';
 import { type SuiteConfig } from '../config.ts';
 import { getTaskMap } from '../../core/guide-validation.ts';
 import { getGraderScriptContent, isEnoent } from './agent-shared.ts';
+import { rootDir } from '../../core/paths.ts';
 import { extractTestTitles } from '../../core/grader-coverage.ts';
 import { type ScenarioCheck } from './metrics.ts';
 
@@ -65,6 +68,7 @@ function getAppFiles(currentDir: string, base = ''): string[] {
       entry.name === 'dist' ||
       entry.name === 'test-results' ||
       entry.name === 'grade-report' ||
+      entry.name === 'traces' ||
       entry.name.startsWith('.')
     ) {
       continue;
@@ -379,10 +383,38 @@ export function evaluateScenarioResults(
       if (specs.length > 0) {
         return specs.map((spec: any) => {
           const lastResult = spec.tests?.[0]?.results?.at(-1);
+          if (lastResult?.status === 'passed') {
+            return { id: spec.id, passed: true, message: spec.title };
+          }
+
+          // Strip ANSI colors and local paths (repo root, temp grading dir, home) so diagnostics are portable and shareable.
+          const clean = (text: string) => stripVTControlCharacters(text)
+            .replaceAll(rootDir + path.sep, '')
+            .replace(/\/tmp\/grade-run-[^/]+\//g, '')
+            .replaceAll(os.homedir(), '~')
+            .trim();
+          // A timeout reports "Test timeout exceeded" first (no location) and the action that was cut off second.
+          const errors: { message?: string; location?: { file: string; line: number } }[] = lastResult?.errors ?? [];
+          const rawError = errors.map(e => e.message).filter(Boolean).join('\n\n');
+          const errorMsg = rawError ? clean(rawError) : undefined;
+
+          const loc = lastResult?.errorLocation ?? errors.find(e => e.location)?.location;
+          const errorLocation = loc ? `${path.relative(rootDir, loc.file)}:${loc.line}` : undefined;
+
+          const snapshotAtt = lastResult?.attachments?.find((a: any) => a.name === 'page-snapshot');
+          const pageSnapshot = snapshotAtt?.body ? Buffer.from(snapshotAtt.body, 'base64').toString('utf8') : undefined;
+
+          const browserErrorsAtt = lastResult?.attachments?.find((a: any) => a.name === 'browser-errors');
+          const browserErrors = browserErrorsAtt?.body ? clean(Buffer.from(browserErrorsAtt.body, 'base64').toString('utf8')) : undefined;
+
           return {
             id: spec.id,
-            passed: lastResult?.status === 'passed',
+            passed: false,
             message: spec.title,
+            ...(errorMsg ? { error: errorMsg } : {}),
+            ...(errorLocation ? { errorLocation } : {}),
+            ...(pageSnapshot ? { pageSnapshot } : {}),
+            ...(browserErrors ? { browserErrors } : {}),
           };
         });
       }

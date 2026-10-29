@@ -26,7 +26,16 @@ export interface StaticSiteGuideMetadata {
 }
 import { replaceMacros, type BuildTarget } from "../core/macros.ts";
 
-import { scanAllGuides, type GuideInventory, getGuideMarkdownPath, extractH1Heading, stripAllComments, isDraftStub, stripLeadingH1 } from "../core/guide-validation.ts";
+import {
+  scanAllGuides,
+  type GuideInventory,
+  getGuideMarkdownPath,
+  extractH1Heading,
+  stripAllComments,
+  isDraftStub,
+  stripLeadingH1,
+  getGuideOriginTrials,
+} from "../core/guide-validation.ts";
 import { isTmpFeature } from "../core/feature-parser.ts";
 import { config } from "../core/skills-config.ts";
 import { getFeatureName } from "../core/baseline.ts";
@@ -36,13 +45,7 @@ import { toDevsiteMarkdown } from "./devsite-markdown.ts";
 const WORKSPACE_ROOT = rootDir;
 
 
-interface UseCase {
-  id: string;
-  description: string;
-  category: string;
-  featuresUsed: string[];
-  tokenCount?: number;
-}
+import type { UseCase } from "../rag/guides.ts";
 
 export interface BuildOptions {
   outputDir: string;
@@ -112,6 +115,7 @@ async function computePipelineHash(
     path.join(rootDir, "src/core/macros.ts"),
     path.join(rootDir, "src/rag/transformers-embedder.ts"),
     path.join(rootDir, "src/core/guide-validation.ts"),
+    path.join(rootDir, "features/origin-trials.json"),
     path.join(rootDir, "src/build/devsite-markdown.ts"),
   ];
 
@@ -374,6 +378,7 @@ web-feature-ids: ${JSON.stringify(featureIds)}
 
   const featureIds: string[] = data['web-feature-ids'] || [];
   const featuresUsed = featureIds.map(getFeatureName);
+  const originTrials = getGuideOriginTrials(featureIds);
   const tokenCount = await embedder.countTokens(processedMarkdown);
 
   useCases.push({
@@ -382,6 +387,7 @@ web-feature-ids: ${JSON.stringify(featureIds)}
     category,
     featuresUsed,
     tokenCount,
+    ...(originTrials.length > 0 ? { originTrials } : {}),
   });
 
   const h1Title = extractH1Heading(processedMarkdown);

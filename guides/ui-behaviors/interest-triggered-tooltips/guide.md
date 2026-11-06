@@ -1,0 +1,81 @@
+---
+name: interest-triggered-tooltips
+description: Show a tooltip or supplemental information when a user hovers over, focuses on, or long-presses an interactive element, without requiring a click.
+web-feature-ids:
+  - interest-invokers
+  - popover
+  - popover-hint
+  - anchor-positioning
+---
+
+# Show a tooltip when hovering
+
+Users expect to see additional related information without completely changing their context. Showing a tooltip when a user is interested in more information can be useful to provide definitions for a term, clarifying the action an icon-only button will take, or provide additional form field guidance.
+
+## Creating the tooltip
+
+You can create a popover with the required behavior by adding the `popover="hint"` attribute to a `<div>` or other semantically appropriate element. When the user opens the tooltip, this hides other `popover="hint"` tooltips, but doesn't hide `auto` or `manual` tooltips. It also handles dismissing nested tooltips.
+
+It also provides light dismiss behavior, so when a user clicks or otherwise focuses outside of the popover, the popover is dismissed.
+
+The tooltip element must have an `id` attribute with a unique value:
+
+```html
+<!-- MANDATORY: The tooltip element must have popover="hint" so it light-dismisses
+     without closing unrelated auto or manual popovers. -->
+<div popover="hint" id="tooltip">Tooltip content</div>
+```
+
+A user expresses interest in the additional information by hovering or focusing on an `<a>` or `<button>` element. The element must have an `interestfor` attribute that matches the `id` attribute of the tooltip.
+
+```html
+<!-- The `interestfor` attribute can be applied to a `<button>` element: -->
+<button interestfor="tooltip">Tooltip trigger</button>
+
+<!-- The `interestfor` attribute can also be applied to an `<a>` element (href is an example): -->
+<a interestfor="tooltip" href="/docs/dom">Tooltip trigger</a>
+```
+
+The trigger must have a visual indicator to indicate that there is additional information available by interacting with the trigger.
+
+### Accessibility built in to `interestfor`
+
+{{ FEATURE("interest-invokers", "accessibility") }}
+
+### Accessibility Constraints (WCAG 1.4.13)
+
+Even with `interestfor` handling the semantics above, your implementation MUST still satisfy WCAG 1.4.13 (Content on Hover or Focus):
+- **Dismissible:** Users must be able to dismiss the tooltip without moving pointer hover or keyboard focus (e.g., by pressing the `Escape` key). The native `popover` attribute manages this binding automatically.
+- **Hoverable:** The pointer must be able to move over the tooltip content itself without the tooltip disappearing. This allows users with magnification tools to read the tooltip text safely.
+- **Persistent:** The tooltip must remain visible until the hover or focus trigger is removed, the user explicitly dismisses it, or its content is no longer valid.
+
+### Positioning the tooltip
+
+The tooltip is positioned using **CSS Anchor Positioning**. When the tooltip is opened using `interestfor`, the trigger element automatically becomes an **implicit anchor** for the popover.
+
+In modern browsers supporting native anchor positioning, you do **not** need to define an `anchor-name` on the trigger or a `position-anchor` on the tooltip. You can position the tooltip directly relative to its implicit anchor using `position-area` and handle collision flipping with `position-try-fallbacks`:
+
+```css
+[popover] {
+  /* Implicit anchor from interestfor: no anchor-name or position-anchor needed */
+  position-area: block-start;
+  position-try-fallbacks: flip-block;
+  /* Override UA popover centering (`inset: 0; margin: auto`) so the tooltip sits adjacent to its anchor */
+  inset: auto;
+  margin: 0;
+}
+```
+
+## Fallback strategies
+
+{{ FEATURE_FALLBACKS("interest-invokers") }}
+
+{{ FEATURE_FALLBACKS("popover") }}
+
+### Fallbacks & browser support for `popover="hint"`
+
+{{ BASELINE_STATUS("popover-hint") }}
+
+The `@oddbird/popover-polyfill` package does not polyfill `popover="hint"` in browsers that already support native `popover` (`auto` and `manual`). In those browsers, the unrecognized `"hint"` value defaults to `popover="manual"` (the HTML invalid value default), so a tooltip opened via keyboard focus may remain open if a second tooltip is opened via pointer hover unless explicitly dismissed on loss of interest by the invoker.
+
+{{ FEATURE("anchor-positioning", "popover-fallbacks") }}

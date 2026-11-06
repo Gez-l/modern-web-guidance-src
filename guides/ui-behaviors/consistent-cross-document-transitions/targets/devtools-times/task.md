@@ -1,0 +1,1 @@
+- Add smooth page transitions when navigating between pages and articles in The DevTools Times, making sure the header styling, initial theme/layout scripts, and the above-the-fold masthead and lead story are ready before the transition starts without waiting on the footer.
